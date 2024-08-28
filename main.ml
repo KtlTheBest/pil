@@ -15,7 +15,11 @@ let compile_with_error lexbuf =
   in
   revised_parser revised_lexer
   *)
-  try Parser.prog Lexer.read lexbuf with
+  try
+    let v = Parser.prog Lexer.read lexbuf in
+    print_endline "parsed input!";
+    v
+  with
   | Parser.Error ->
     Printf.fprintf stderr "%a: syntax_error" print_position lexbuf;
     []

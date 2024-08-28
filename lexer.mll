@@ -91,6 +91,7 @@ rule read =
   | "болса" { debug lexbuf; THEN }
   | "немесе" { debug lexbuf; ELIF }
   | "әйтпесе" { debug lexbuf; ELSE }
+  | "істеу" { debug lexbuf; ENDIF }
   | "істе" { debug lexbuf; ENDIF }
   | "үшін" { debug lexbuf; FOR }
   | "тең" { debug lexbuf; EQ }
