@@ -529,7 +529,7 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
         Err [Printf.sprintf "Some field names of %s are repeated!" name]
       )
     )
-  | Ast.Expr e ->
+  | Expr e ->
     (match typecheck_expr funcs structstore ctx e with
     | Ok t -> Ok (Expr((type_of t), t), funcs, structstore, ctx)
     | Err l -> Err l
@@ -539,7 +539,7 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
     (match t with
     | Unknown -> 
       let new_ctx = (name, type_of t') :: ctx in
-      Ok(VarDef(t, name, t'), funcs, structstore, new_ctx)
+      Ok(VarDef(type_of t', name, t'), funcs, structstore, new_ctx)
     | _ -> match t <> type_of t' with
       | true -> 
         Err [Printf.sprintf 
@@ -598,14 +598,14 @@ and typecheck_stmt_list t funcs structstore ctx p =
     | Ok(code), Ok (v, new_funcs, new_structstore, new_ctx) -> 
         (Ok(code @ [v]), new_funcs, new_structstore, new_ctx)
     | Ok _, Err x -> (Err x, funcs, structstore, ctx)
-    | Err l, Ok _ -> (Err l, funcs, structstore, ctx)
+    | Err l, Ok (_, funcs', structstore', ctx') -> (Err l, funcs', structstore', ctx')
     | Err l, Err x -> (Err(l @ x), funcs, structstore, ctx)
   in
   List.fold_left f (Ok([]), funcs, structstore, ctx) p
 
 let typecheck p =
   let ctx = [] in
-  let funcs = [] in
+  let funcs = [("шығар", (Types.Unit, [("", Types.String)])); ("консольденОқы", (Types.String, []))] in
   let structstore = [] in
   let (t, _, _, _) = typecheck_stmt_list (Types.Unit) funcs structstore ctx p in
   match t with
