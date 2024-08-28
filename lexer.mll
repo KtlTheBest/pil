@@ -21,7 +21,7 @@ let backslash_escapes =
 
 let whitespace = ['\n' '\t']
 let white = whitespace whitespace*
-let comment = "//" _* '\n'
+let comment = "//" [^ '\n' ]* '\n'
 
 (*let lowercase_kazakh_char = ['а' 'ә' 'б' 'в' 'г' 'ғ' 'д' 'е' 'ё' 'ж' 'з' 'и' 'й' 'к' 'қ' 'л' 'м' 'н' 'ң' 'о' 'ө' 'п' 'р' 'с' 'т' 'у' 'ұ' 'ү' 'ф' 'х' 'һ' 'ц' 'ч' 'ш' 'щ' 'ъ' 'ы' 'і' 'ь' 'э' 'ю' 'я']
 let uppercase_kazakh_char = ['А' 'Ә' 'Б' 'В' 'Г' 'Ғ' 'Д' 'Е' 'Ё' 'Ж' 'З' 'И' 'Й' 'К' 'Қ' 'Л' 'М' 'Н' 'Ң' 'О' 'Ө' 'П' 'Р' 'С' 'Т' 'У' 'Ұ' 'Ү' 'Ф' 'Х' 'Һ' 'Ц' 'Ч' 'Ш' 'Щ' 'Ъ' 'Ы' 'І' 'Ь' 'Э' 'Ю' 'Я']*)
@@ -74,7 +74,10 @@ let ident = identstart identbody*
 
 rule read =
   parse
-  | comment { read lexbuf }
+  | comment { debug lexbuf; read lexbuf }
+  | "жаңа" { debug lexbuf; NEW }
+  | "бастап" { debug lexbuf; FROM }
+  | "дейін" { debug lexbuf; TO }
   | "айнымалы" { debug lexbuf; VARDEF_K }
   | "шын" { debug lexbuf; BOOL_LIT(true) }
   | "жалған" { debug lexbuf; BOOL_LIT(false) }
@@ -100,6 +103,7 @@ rule read =
   | "әріп" { debug lexbuf; CHAR_T }
   | "сан" { debug lexbuf; INT_T }
   | "сөз" { debug lexbuf; STRING_T }
+  | "=" { debug lexbuf; ASSIGN }
   | white { debug lexbuf; WS }
   | '+' { debug lexbuf; ADD }
   | '-' { debug lexbuf; SUB }
@@ -130,5 +134,5 @@ and string buf = parse
 
 and char = parse
   | '\\' (backslash_escapes as c) '\''
-  { CHAR_LIT (char_for_backslash c) }
-  | (_ as c) '\'' { CHAR_LIT c }
+  { CHAR_LIT ( String.init 1 (fun _ -> char_for_backslash c) ) }
+  | (identbody as c) '\'' { CHAR_LIT c }

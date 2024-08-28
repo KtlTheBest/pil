@@ -1,7 +1,7 @@
 type expr =
   | Unit
   | Bool of bool
-  | Char of char
+  | Char of string
   | Int of int
   | Float of float
   | String of string

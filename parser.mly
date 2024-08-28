@@ -1,5 +1,5 @@
 %token <bool> BOOL_LIT
-%token <char> CHAR_LIT
+%token <string> CHAR_LIT
 %token <int> INT_LIT
 %token <float> FLOAT_LIT
 %token <string> STRING_LIT
@@ -22,6 +22,8 @@
 %token STRUCTDEF_K
 %token NEW
 %token RETURN
+%token FROM
+%token TO
 %token FOR
 
 %token BEGIN
@@ -53,18 +55,17 @@
 %token LSQR
 %token RSQR
 
-%type <Ast.expr list> func_arg_list
+%type <(string * Types.tt) list> member_list
+%type <(string * Types.tt) list> nonempty_argdef
+%type <Ast.stmt> elif_chain
 %type <Ast.expr list> non_empty_func_arg_list
 %type <(string * Types.tt) list> argdef
 %type <(string * Types.tt)> arg
-%type <Ast.stmt> toplevel_stmt
-%type <Ast.stmt list> toplevel_stmt_list
 %type <unit> ws
 %type <Types.tt> vardef_type
 %type <Types.tt> vardef_type_basic
 %type <Ast.stmt list> stmt_list
 %type <Ast.stmt> stmt
-%type <Ast.stmt> else_branch
 %type <Ast.expr> expr
 %type <Ast.expr> expr_and
 %type <Ast.expr> expr_eq
@@ -73,52 +74,53 @@
 %type <Ast.expr> expr_mem
 %type <Ast.expr> arr_acc
 %type <Ast.expr> lit_or_ident
+%type <Ast.expr> funccall_or_lit_ident
 
 %start <Ast.stmt list> prog
 %%
 
 prog:
-  | EOF { [] }
-  | s = toplevel_stmt_list EOF { s }
-  ;
-
-toplevel_stmt_list:
-  | s = toplevel_stmt WS l = toplevel_stmt_list { s :: l }
-  | s = toplevel_stmt { [s] }
+  | ws EOF { [] }
+  | ws s = stmt_list ws EOF { s }
   ;
 
 stmt_list:
-  | s = stmt WS l = stmt_list { s :: l }
-  | s = toplevel_stmt { [s] }
+  | l = stmt_list WS s = stmt { l @ [s] }
+  | s = stmt { [s] }
   ;
 
 ws:
   | { () }
-  | WS ws { () }
-
-toplevel_stmt:
-  | ws s = stmt { s }
-  | ws t = vardef_type ws i = IDENT ws LPAR args = argdef RPAR FUNCTION_K WS BEGIN body = stmt_list END 
-  { Ast.FuncDef(t, i, args, body) }
-  ;
+  | WS { () }
 
 stmt:
-  | e = expr { Ast.Expr(e) }
-  | a = expr ASSIGN b = expr { Ast.Assign(a, b) }
-  | ws IF c = expr THEN ws t_l = stmt_list ws ENDIF { Ast.If(c, Ast.Block(t_l), (Ast.Block([]))) }
-  | ws IF c = expr THEN ws t_l = stmt_list ws f = elif_chain { Ast.If(c, Ast.Block(t_l), f) }
-  | RETURN { Ast.EmptyReturn }
-  | e = expr RETURN { Ast.Return(e) }
-  | t = vardef_type VARDEF_K i = IDENT ASSIGN v = expr { Ast.VarDef(t, i, v) }
-  | t = vardef_type ws i = IDENT ws LPAR args = argdef RPAR WS BEGIN body = stmt_list END 
+  | ws e = expr { Ast.Expr(e) }
+  | ws a = expr ASSIGN b = expr { Ast.Assign(a, b) }
+  | ws IF c = expr THEN ws t_l = stmt_list f = elif_chain { Ast.If(c, Ast.Block(t_l), f) }
+  | ws RETURN { Ast.EmptyReturn }
+  | ws e = expr RETURN { Ast.Return(e) }
+  | ws                 VARDEF_K i = IDENT ASSIGN v = expr { Ast.VarDef(Types.Unknown, i, v) }
+  | ws t = vardef_type VARDEF_K i = IDENT ASSIGN v = expr { Ast.VarDef(t, i, v) }
+  | ws                 VARDEF_K i = IDENT ASSIGN v = expr FROM e = expr TO FOR ws BEGIN ws body = stmt_list ws END 
+  { Ast.For(Ast.VarDef(Types.Unknown, i, v), Ast.Lt(Ast.Ident(i), e), Ast.Assign(Ast.Ident(i), Ast.Add(Ast.Ident(i), Ast.Int(1))), Ast.Block(body)) }
+  | BEGIN ws sl = stmt_list ws END { Ast.Block(sl) }
+  | ws t = vardef_type i = IDENT LPAR args = argdef RPAR FUNCTION_K ws BEGIN ws body = stmt_list ws END 
   { Ast.FuncDef(t, i, args, body) }
-  | BEGIN WS sl = stmt_list END { Ast.Block(sl) }
+  | ws i = IDENT LPAR args = argdef RPAR FUNCTION_K ws BEGIN ws body = stmt_list ws END
+  { Ast.FuncDef(Types.Unit, i, args, body) }
+  | ws i = IDENT STRUCTDEF_K ws BEGIN ws END { Ast.StructDef(i, []) }
+  | ws i = IDENT STRUCTDEF_K ws BEGIN ws l = member_list ws END { Ast.StructDef(i, l) }
+  ;
+
+member_list:
+  | l = member_list ws x = arg { l @ [x] }
+  | x = arg { [ x ] }
   ;
 
 elif_chain:
-  | ws ELIF c = expr THEN ws t_l = stmt_list f = elif_chain { Ast.If(c, Ast.Block(t_l), f) }
-  | ws ELSE ws f_l = stmt_list ENDIF { Ast.Block(f_l) }
   | ws ENDIF { Ast.Block([]) }
+  | ws ELSE ws f_l = stmt_list ws ENDIF { Ast.Block(f_l) }
+  | ws ELIF c = expr THEN ws t_l = stmt_list f = elif_chain { Ast.If(c, Ast.Block(t_l), f) }
   ;
 
 argdef:
@@ -136,7 +138,7 @@ arg:
   ;
 
 vardef_type:
-  | LSQR RSQR t = vardef_type { Types.Array(t) }
+  | t = vardef_type LSQR RSQR { Types.Array(t) }
   | t = vardef_type_basic { t }
   ;
 
@@ -149,13 +151,8 @@ vardef_type_basic:
   | i = IDENT { Types.CustomType(i) }
   ;
 
-else_branch:
-  | ELIF c = expr THEN t = stmt f = else_branch { Ast.If(c, t, f) }
-  | ELSE f = stmt { f }
-  | { Nop }
-  ;
-
 expr:
+  | NEW i = IDENT { Ast.New(i) }
   | a = expr L_OR b = expr_and { Ast.LOr(a, b) }
   | e = expr_and { e }
   ;
@@ -194,24 +191,27 @@ expr_mem:
   ;
 
 arr_acc:
-  | a = arr_acc LSQR e = expr RSQR { Ast.IndexAccess(a, e) }
+  | LSQR e = expr RSQR a = arr_acc { Ast.IndexAccess(a, e) }
+  | e = funccall_or_lit_ident { e }
+  ;
+
+funccall_or_lit_ident:
+  | LPAR RPAR i = IDENT { Ast.FuncCall(i, []) }
+  | LPAR e = expr RPAR i = IDENT { Ast.FuncCall(i, [e]) }
+  | LPAR args = non_empty_func_arg_list RPAR i = IDENT { Ast.FuncCall(i, args) }
+  | LPAR e = expr RPAR { e }
   | e = lit_or_ident { e }
   ;
 
 lit_or_ident:
+  | LSQR RSQR { Ast.Array( [] ) }
+  | LSQR l = non_empty_func_arg_list RSQR { Ast.Array( l ) }
   | b = BOOL_LIT { Ast.Bool b }
   | c = CHAR_LIT { Ast.Char c }
   | i = INT_LIT { Ast.Int i }
   | f = FLOAT_LIT { Ast.Float f }
   | s = STRING_LIT { Ast.String s }
   | i = IDENT { Ast.Ident i }
-  | LPAR args = func_arg_list RPAR i = IDENT { Ast.FuncCall(i, args) }
-  | LPAR e = expr RPAR { e }
-  ;
-
-func_arg_list:
-  | { [] }
-  | l = non_empty_func_arg_list { l }
   ;
 
 non_empty_func_arg_list:

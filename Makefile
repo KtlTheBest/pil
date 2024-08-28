@@ -1,4 +1,4 @@
-OCB_FLAGS = -use-menhir -use-ocamlfind -lexflag -ml
+OCB_FLAGS = -use-menhir -use-ocamlfind -lexflag -ml -package batteries
 OCB = ocamlbuild $(OCB_FLAGS)
 
 all: native

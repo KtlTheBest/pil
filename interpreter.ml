@@ -97,8 +97,7 @@ let rec evaluate_expr funcs varstore e =
     (match t, (Typecheck.TypedAst.type_of e') with
     | Bool, Char ->
       let c = unsafe_char e' in
-      let v = Char.code c in
-      if v = 0 then Bool false else Bool true
+      if c = "\x00" then Bool false else Bool true
     | Bool, Int ->
       let v = unsafe_int e' in
       if v = 0 then Bool false else Bool true
@@ -111,13 +110,20 @@ let rec evaluate_expr funcs varstore e =
       if v = "" then Bool false else Bool true
     | Char, Int ->
       let v = unsafe_int e' in
-      Char(Char.chr v)
+      let buf = BatUTF8.Buf.create 0 in
+      let c = BatUChar.of_int v in
+      BatUTF8.Buf.add_char buf c;
+      let s = BatUTF8.Buf.contents buf in
+      Char(s)
     | Int, Bool ->
       let v = unsafe_bool e' in
       if v = true then Int 1 else Int 0
     | Int, Char ->
       let v = unsafe_char e' in
-      Int (Char.code v)
+      assert (BatUTF8.length v = 1);
+      let c = BatUTF8.get v 0 in
+      let c' = BatUChar.int_of c in
+      Int (c')
     | Int, String ->
       let v = unsafe_string e' in
       Int (int_of_string v)
@@ -138,7 +144,7 @@ let rec evaluate_expr funcs varstore e =
       )
     | String, Char ->
       let v = unsafe_char e' in
-      String (String.init 1 (fun _ -> v))
+      String (v)
     | String, Int ->
       let v = unsafe_int e' in
       String (string_of_int v)
