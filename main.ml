@@ -33,6 +33,7 @@ let compile p =
   |> lexbuf_of_str
   |> compile_with_error
   |> Typecheck.typecheck
+  |> fun x -> (print_endline "typechecked!"; x)
   |> Interpreter.interpret
 
 let _ = compile program2

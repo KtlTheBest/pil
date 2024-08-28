@@ -493,7 +493,11 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
   | FuncDef(rettype_f, name, args, body) ->
     let new_funcs = (name, (rettype_f, args)) :: funcs in
     let new_ctx = args @ ctx in
-    typecheck_stmt rettype_f new_funcs structstore new_ctx s
+    let (t, _, _, _) = typecheck_stmt_list rettype_f new_funcs structstore new_ctx body in
+    (match t with
+    | Ok(body) -> Ok(FuncDef(rettype_f, name, args, body), new_funcs, structstore, ctx)
+    | Err l -> Err l
+    )
   | StructDef (name, members) ->
     (match List.assoc_opt name structstore with
     | Some(_) -> Err [Printf.sprintf "Struct %s has been already defined!" name]
@@ -531,24 +535,20 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
     | Err l -> Err l
     )
   | VarDef(t, name, e) ->
-    let e' = typecheck_expr funcs structstore ctx e in
-    (match e' with
-    | Ok(t') ->
-      (match t with
-      | Unknown -> 
+    typecheck_expr funcs structstore ctx e >>= fun t' ->
+    (match t with
+    | Unknown -> 
+      let new_ctx = (name, type_of t') :: ctx in
+      Ok(VarDef(t, name, t'), funcs, structstore, new_ctx)
+    | _ -> match t <> type_of t' with
+      | true -> 
+        Err [Printf.sprintf 
+          "The types %s and %s are not equal" 
+          (Types.string_of t) 
+          (Types.string_of @@ type_of t')]
+      | false ->
         let new_ctx = (name, type_of t') :: ctx in
-        Ok(VarDef(t, name, t'), funcs, structstore, new_ctx)
-      | _ ->
-        if t <> type_of t' then
-          Err [Printf.sprintf 
-            "The types %s and %s are not equal" 
-            (Types.string_of t) 
-            (Types.string_of @@ type_of t')]
-        else
-          let new_ctx = (name, type_of t') :: ctx in
-          Ok((VarDef(t, name, t')), funcs, structstore, new_ctx)
-      )
-    | Err l -> Err l
+        Ok((VarDef(t, name, t')), funcs, structstore, new_ctx)
     )
   | Assign(a, b) ->
     let rec is_lval x =
@@ -566,10 +566,8 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
       | Err(l) -> Err ("Trying to assign to a non-lvalue" :: l)
     else
       let a' = typecheck_expr funcs structstore ctx a in
-      (match a' with
-      | Ok(t) ->
-        (match b' with
-        | Ok(t') ->
+      (match a', b' with
+      | Ok(t), Ok(t') ->
           if t <> t' then
             Err [Printf.sprintf 
               "Trying to assign value of type %s to value of type %s" 
@@ -577,13 +575,9 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
               (Types.string_of @@ type_of t)]
           else
             Ok(Assign(t, t'), funcs, structstore, ctx)
-        | Err l -> Err l
-        )
-      | Err l' ->
-        (match b' with
-        | Ok(_) -> Err l'
-        | Err(l'') -> Err (l' @ l'')
-        )
+      | Ok(_), (Err l) -> Err l
+      | (Err l), Ok(_) -> Err l
+      | (Err l'), Err(l'') -> Err (l' @ l'')
       )
   | Block l -> 
     let (t, _, _, _) = typecheck_stmt_list rettype funcs structstore ctx l in
