@@ -90,7 +90,7 @@ module TypedAst = struct
     | IndexAccess(t, _, _) -> t
     | MemberAccess(t, _, _) -> t
     | CastTo(t, _) -> t
-    | Array(t, _) -> t
+    | Array(t, _) -> Array(t)
     | Struct(t, _) -> t
     | IntAdd(_, _) -> Int
     | IntSub(_, _) -> Int
@@ -122,6 +122,54 @@ module TypedAst = struct
     | StringGe(_, _) -> Bool
     | LAnd(_, _) -> Bool
     | LOr(_, _) -> Bool
+
+  let rec string_of_expr = function
+    | Unit -> "Unit"
+    | Bool(true) -> "Bool(true)"
+    | Bool(false) -> "Bool(false)"
+    | Char(s) -> Printf.sprintf "Char(%s)" s
+    | Int(i) -> Printf.sprintf "Int(%d)" i
+    | Float(f) -> Printf.sprintf "Float(%f)" f
+    | String(s) -> Printf.sprintf "String(%s)" s
+    | Ident(t, s) -> Printf.sprintf "Ident(%s, %s)" (Types.string_of t) s
+    | CastTo(t, e) -> Printf.sprintf "CastTo(%s, %s)" (Types.string_of t) (string_of_expr e)
+    | FuncCall(t, name, args) ->
+      let args' = String.concat ", " @@ List.map string_of_expr args in
+      Printf.sprintf "FuncCall(%s, %s, (%s))" (Types.string_of t) name args'
+    | IndexAccess(t, a, i) -> Printf.sprintf "IndexAccess(%s, %s, %s)" (Types.string_of t) (string_of_expr a) (string_of_expr i)
+    | MemberAccess(t, m, s) -> Printf.sprintf "MemberAccess(%s, %s, %s)" (Types.string_of t) (string_of_expr m) s
+    | Struct(t, l) -> Printf.sprintf "Struct(%s, [%s])" (Types.string_of t) @@ String.concat "; " @@ List.map (fun (a, b) -> ("(" ^ a ^ ", " ^ string_of_expr b ^ ")" )) l
+    | Array(t, l) -> Printf.sprintf "Array(%s, [%s])" (Types.string_of t) @@ String.concat ", " @@ List.map string_of_expr l
+    | IntAdd(a, b) -> Printf.sprintf "IntAdd(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntSub(a, b) -> Printf.sprintf "IntSub(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntMul(a, b) -> Printf.sprintf "IntMul(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntDiv(a, b) -> Printf.sprintf "IntDiv(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntMod(a, b) -> Printf.sprintf "IntMod(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatAdd(a, b) -> Printf.sprintf "FloatAdd(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatSub(a, b) -> Printf.sprintf "FloatSub(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatMul(a, b) -> Printf.sprintf "FloatMul(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatDiv(a, b) -> Printf.sprintf "FloatDiv(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | StringAdd(a, b) -> Printf.sprintf "StringAdd(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | Eq(a, b) -> Printf.sprintf "Eq(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | Neq(a, b) -> Printf.sprintf "Neq(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | CharLt(a, b) -> Printf.sprintf "CharLt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | CharLe(a, b) -> Printf.sprintf "CharLe(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | CharGt(a, b) -> Printf.sprintf "CharGt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | CharGe(a, b) -> Printf.sprintf "CharGe(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntLt(a, b) -> Printf.sprintf "IntLt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntLe(a, b) -> Printf.sprintf "IntLe(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntGt(a, b) -> Printf.sprintf "IntGt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | IntGe(a, b) -> Printf.sprintf "IntGe(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatLt(a, b) -> Printf.sprintf "FloatLt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatLe(a, b) -> Printf.sprintf "FloatLt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatGt(a, b) -> Printf.sprintf "FloatGt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | FloatGe(a, b) -> Printf.sprintf "FloatGe(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | StringLt(a, b) -> Printf.sprintf "StringLt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | StringLe(a, b) -> Printf.sprintf "StringLt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | StringGt(a, b) -> Printf.sprintf "StringGt(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | StringGe(a, b) -> Printf.sprintf "StringGe(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | LAnd(a, b) -> Printf.sprintf "LAnd(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | LOr(a, b) -> Printf.sprintf "LOr(%s, %s)" (string_of_expr a) (string_of_expr b)
 end
 
 let rec traverse_list l =
@@ -245,37 +293,65 @@ let rec typecheck_expr funcs structstore ctx e =
         (Types.string_of t_b)]
     )
   | FuncCall(name, args) -> 
-    (match List.assoc_opt name funcs with
-    | Some(rettype, expected_arg_types) ->
-      let typechecked_args = 
-        args
-        |> List.map (check)
-        |> traverse_list
+    (match name with
+    | "шығар" ->
+      let args_len_one args =
+        match args with
+        | [x] -> Ok (x)
+        | _ -> Err ["print expects one arugment only"]
       in
-      (match typechecked_args with
-      | Err l -> Err l
-      | Ok l ->
-        let e_n = List.length expected_arg_types in
-        let l_n = List.length l in
-        if l_n = e_n then begin
-          let types = List.map type_of l in
-          let n = List.combine expected_arg_types types
-          |> List.filter (fun ((_, a), b) -> a = b)
-          |> List.length
-          in
-        if n = List.length expected_arg_types then begin
-          ok (FuncCall(rettype, name, l))
-        end else begin
-          Err ([Printf.sprintf "Some type arguments to %s don't match!" name])
-        end
-        end else
-        Err [Printf.sprintf "Expected %d arguments to %s, but instead got %d"
-          e_n
-          name
-          l_n
-        ]
+      args_len_one args >>= fun v ->
+      check v >>= fun v' ->
+      let t_v = type_of v' in
+      (match t_v with
+      | String -> Ok (FuncCall(Unit, "print", [v']))
+      | Bool
+      | Int
+      | Char
+      | Float -> Ok (FuncCall(Unit, "print", [CastTo(String, v')]))
+      | _ -> Err [Printf.sprintf "Can't convert %s to atring" @@ Types.string_of t_v]
       )
-    | None -> Err [Printf.sprintf "The function %s is not defined!" name])
+    | "консольденОқы" ->
+      let args_len_zero args =
+        match args with
+        | [] -> Ok (())
+        | _ -> Err ["input doesn't expect any arguments!"]
+      in
+      args_len_zero args >>= fun () ->
+      Ok(FuncCall(String, "input", []))
+    | _ ->
+      (match List.assoc_opt name funcs with
+      | Some(rettype, expected_arg_types) ->
+        let typechecked_args = 
+          args
+          |> List.map (check)
+          |> traverse_list
+        in
+        (match typechecked_args with
+        | Err l -> Err l
+        | Ok l ->
+          let e_n = List.length expected_arg_types in
+          let l_n = List.length l in
+          if l_n = e_n then begin
+            let types = List.map type_of l in
+            let n = List.combine expected_arg_types types
+            |> List.filter (fun ((_, a), b) -> a = b)
+            |> List.length
+            in
+          if n = List.length expected_arg_types then begin
+            ok (FuncCall(rettype, name, l))
+          end else begin
+            Err ([Printf.sprintf "Some type arguments to %s don't match!" name])
+          end
+          end else
+          Err [Printf.sprintf "Expected %d arguments to %s, but instead got %d"
+            e_n
+            name
+            l_n
+          ]
+        )
+      | None -> Err [Printf.sprintf "The function %s is not defined!" name])
+    )
   | IndexAccess(e, v) -> 
     check e >>= fun e' ->
     check v >>= fun v' ->
@@ -543,7 +619,8 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
     | _ -> match t <> type_of t' with
       | true -> 
         Err [Printf.sprintf 
-          "The types %s and %s are not equal" 
+          "(%s), The types %s and %s are not equal" 
+          (Ast.string_of_stmt s)
           (Types.string_of t) 
           (Types.string_of @@ type_of t')]
       | false ->
@@ -568,7 +645,7 @@ let rec typecheck_stmt rettype funcs structstore (ctx: (string * Types.tt) list)
       let a' = typecheck_expr funcs structstore ctx a in
       (match a', b' with
       | Ok(t), Ok(t') ->
-          if t <> t' then
+          if (type_of t) <> (type_of t') then
             Err [Printf.sprintf 
               "Trying to assign value of type %s to value of type %s" 
               (Types.string_of @@ type_of t')

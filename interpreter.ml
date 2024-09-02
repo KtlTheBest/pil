@@ -52,10 +52,30 @@ let unsafe_array v =
   | _ -> failwith "Panic! Failed safe extraction of array!"
 
 let rec evaluate_expr funcs varstore e =
+  print_endline @@ Printf.sprintf "DEBUG: %s" (Typecheck.TypedAst.string_of_expr e);
   let ev e = evaluate_expr funcs varstore e in
   let open Typecheck.TypedAst in
-  let is_builtin s = todo "is_builtin" in
-  let eval_builtin fname args = todo "eval_builtin" in
+  let is_builtin s = 
+    match s with
+    | "print"
+    | "input" -> true
+    | _ -> false
+  in
+  let eval_builtin fname args =
+    match fname with
+    | "print" -> (
+      match args with
+      | [x] ->
+        let x' = evaluate_expr funcs varstore x in
+        (match x' with
+        | String(s) -> print_endline s; Unit
+        | _ -> failwith "Something went wrong, tried to print a non-string"
+        )
+      | _ -> failwith "Something went wrong, expected only one argument to print"
+    )
+    | "input" -> let s = read_line () in String(s)
+    | _ -> failwith @@ Printf.sprintf "Not a builtin function! %s" fname
+  in
   let modulo a b =
     let res = a mod b in
     if res >= 0 then res
@@ -94,62 +114,63 @@ let rec evaluate_expr funcs varstore e =
     Struct(t, (List.map (fun (name, v) -> (name, ev v)) s))
   | Array(t, l) -> Array(t, List.map ev l)
   | CastTo(t, e') ->
-    (match t, (Typecheck.TypedAst.type_of e') with
+    let e'' = evaluate_expr funcs varstore e' in
+    (match t, (Typecheck.TypedAst.type_of e'') with
     | Bool, Char ->
-      let c = unsafe_char e' in
+      let c = unsafe_char e'' in
       if c = "\x00" then Bool false else Bool true
     | Bool, Int ->
-      let v = unsafe_int e' in
+      let v = unsafe_int e'' in
       if v = 0 then Bool false else Bool true
     | Bool, Float ->
-      let v = unsafe_float e' in
+      let v = unsafe_float e'' in
       let eps = 0.000001 in
       if v < eps then Bool false else Bool true
     | Bool, String ->
-      let v = unsafe_string e' in
+      let v = unsafe_string e'' in
       if v = "" then Bool false else Bool true
     | Char, Int ->
-      let v = unsafe_int e' in
+      let v = unsafe_int e'' in
       let buf = BatUTF8.Buf.create 0 in
       let c = BatUChar.of_int v in
       BatUTF8.Buf.add_char buf c;
       let s = BatUTF8.Buf.contents buf in
       Char(s)
     | Int, Bool ->
-      let v = unsafe_bool e' in
+      let v = unsafe_bool e'' in
       if v = true then Int 1 else Int 0
     | Int, Char ->
-      let v = unsafe_char e' in
+      let v = unsafe_char e'' in
       assert (BatUTF8.length v = 1);
       let c = BatUTF8.get v 0 in
       let c' = BatUChar.int_of c in
       Int (c')
     | Int, String ->
-      let v = unsafe_string e' in
+      let v = unsafe_string e'' in
       Int (int_of_string v)
     | Int, Float ->
-      let v = unsafe_float e' in
+      let v = unsafe_float e'' in
       Int (int_of_float v)
     | Float, String ->
-      let v = unsafe_string e' in
+      let v = unsafe_string e'' in
       Float (float_of_string v)
     | Float, Int ->
-      let v = unsafe_int e' in
+      let v = unsafe_int e'' in
       Float (float_of_int v)
     | String, Bool ->
-      let v = unsafe_bool e' in
+      let v = unsafe_bool e'' in
       (match v with
       | true -> String "шын"
       | false -> String "жалған"
       )
     | String, Char ->
-      let v = unsafe_char e' in
+      let v = unsafe_char e'' in
       String (v)
     | String, Int ->
-      let v = unsafe_int e' in
+      let v = unsafe_int e'' in
       String (string_of_int v)
     | String, Float ->
-      let v = unsafe_float e' in
+      let v = unsafe_float e'' in
       String (string_of_float v)
     | _, _ -> impossible "evaluate_expr: CastTo")
   | IntAdd(a, b) ->
