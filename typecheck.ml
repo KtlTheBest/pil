@@ -170,6 +170,54 @@ module TypedAst = struct
     | StringGe(a, b) -> Printf.sprintf "StringGe(%s, %s)" (string_of_expr a) (string_of_expr b)
     | LAnd(a, b) -> Printf.sprintf "LAnd(%s, %s)" (string_of_expr a) (string_of_expr b)
     | LOr(a, b) -> Printf.sprintf "LOr(%s, %s)" (string_of_expr a) (string_of_expr b)
+
+  let rec string_of_stmt = function
+    | Nop -> "Nop"
+    | EmptyReturn -> "EmptyReturn"
+    | Return(t, e) -> Printf.sprintf "Return(%s, %s)" (Types.string_of t) (string_of_expr e)
+    | Expr(t, e) -> Printf.sprintf "Expr(%s, %s)" (Types.string_of t) (string_of_expr e)
+    | Assign(a, b) -> Printf.sprintf "Assign(%s, %s)" (string_of_expr a) (string_of_expr b)
+    | If(c, t, f) -> 
+      Printf.sprintf "If(%s, %s, %s)"
+        (string_of_expr c)
+        (string_of_stmt t)
+        (string_of_stmt f)
+    | VarDef(t, name, v) ->
+      Printf.sprintf "VarDef(%s, %s, %s)"
+        (Types.string_of t)
+        name
+        (string_of_expr v)
+    | While(c, s) -> Printf.sprintf "While(%s, %s)" (string_of_expr c) (string_of_stmt s)
+    | For(i, c, s, b) ->
+      Printf.sprintf "For(%s, %s, %s, %s)"
+        (string_of_stmt i)
+        (string_of_expr c)
+        (string_of_stmt s)
+        (string_of_stmt b)
+    | Block(l) -> Printf.sprintf "Block([%s])" @@ String.concat "; " @@ List.map string_of_stmt l
+    | FuncDef(t, name, args, s) ->
+      let args' =
+        args
+        |> List.map (fun (s, t) -> (s, Types.string_of t))
+        |> List.map (fun (a, b) -> Printf.sprintf "(%s, %s)" a b)
+        |> String.concat "; "
+      in
+      let s' = String.concat "; " @@ List.map string_of_stmt s in
+      Printf.sprintf "FuncDef(%s, %s, [%s], [%s])"
+        (Types.string_of t)
+        name
+        args'
+        s'
+    | StructDef(name, members) ->
+      let members' =
+        members
+        |> List.map (fun (s, t) -> (s, Types.string_of t))
+        |> List.map (fun (a, b) -> Printf.sprintf "(%s, %s)" a b)
+        |> String.concat "; "
+      in
+      Printf.sprintf "StructDef(%s, [%s])"
+        name
+        members'
 end
 
 let rec traverse_list l =

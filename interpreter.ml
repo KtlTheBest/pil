@@ -52,7 +52,7 @@ let unsafe_array v =
   | _ -> failwith "Panic! Failed safe extraction of array!"
 
 let rec evaluate_expr funcs varstore e =
-  print_endline @@ Printf.sprintf "DEBUG: %s" (Typecheck.TypedAst.string_of_expr e);
+  (* print_endline @@ Printf.sprintf "DEBUG: %s" (Typecheck.TypedAst.string_of_expr e); *)
   let ev e = evaluate_expr funcs varstore e in
   let open Typecheck.TypedAst in
   let is_builtin s = 
@@ -319,6 +319,7 @@ let rec evaluate_expr funcs varstore e =
     )
 
 and execute_stmt funcs varstore s : ('a * (string * Typecheck.TypedAst.expr) list) =
+  (* print_endline @@ Printf.sprintf "DEBUG: %s" (Typecheck.TypedAst.string_of_stmt s); *)
   let open Typecheck.TypedAst in
   match s with
   | Nop -> failwith "Impossible case"
@@ -344,10 +345,11 @@ and execute_stmt funcs varstore s : ('a * (string * Typecheck.TypedAst.expr) lis
       | _ -> impossible "assign, orig_value"
     in
     let rec aug_value l r (v : Typecheck.TypedAst.expr) =
+      (* print_endline @@ Printf.sprintf "DEBUG: aug_value: %s" (Typecheck.TypedAst.string_of_expr l); *)
       match l with
-      | Ident(_, _) -> (fun () -> v)
+      | Ident(_, _) -> (fun () -> r)
       | MemberAccess(_, l', member) ->
-        let f = aug_value l r v in
+        let f = aug_value l' r v in
         let members = unsafe_struct v in
         let res = (fun () ->
           let v = f () in
@@ -361,8 +363,8 @@ and execute_stmt funcs varstore s : ('a * (string * Typecheck.TypedAst.expr) lis
             let idx = List.init n id in
             List.combine idx l
           in
-          let f = aug_value l r v in
-          let arr = unsafe_array a' in
+          let f = aug_value a' r v in
+          let arr = unsafe_array v in
           let res = (fun () ->
             let v = f () in
             let new_arr = enum arr in
