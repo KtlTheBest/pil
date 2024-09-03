@@ -49,9 +49,6 @@ This project is based on a idea shamelessly taken from a friend of mine, changed
 басы
     егер н тең 0 болса
         0 қайтар
-    істе
-    егер н тең 0 болса
-        0 қайтар
     немесе н тең 1 болса
         1 қайтар
     әйтпесе
